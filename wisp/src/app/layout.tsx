@@ -2,7 +2,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import '@/styles/globals.css';
-import Sidebar from '@/components/Sidebar';
+import ClientLayout from '@/app/ClientLayout';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -19,10 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div style={{ display: 'flex' }}> 
-          <Sidebar /> 
-          <main style={{ flexGrow: 1 }}>{children}</main> 
-        </div>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );
