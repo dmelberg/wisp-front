@@ -1,84 +1,85 @@
-'use client'; 
-
+'use client';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { 
-  Drawer, 
-  List, 
-  ListItem, 
-  ListItemButton, 
-  ListItemIcon, 
-  ListItemText, 
-  Toolbar, 
-  Typography,
+import {
+  Drawer,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
   Divider,
-  Box,
+  Toolbar,
+  Typography,
 } from '@mui/material';
-import { Assessment, AttachMoney, Settings, SwapHoriz, Logout } from '@mui/icons-material';
+import {
+  Dashboard as DashboardIcon,
+  AccountBalance as AccountBalanceIcon,
+  Analytics as AnalyticsIcon,
+  Settings as SettingsIcon,
+  Logout as LogoutIcon,
+} from '@mui/icons-material';
 
-const drawerWidth = 240;
-
-const Sidebar = () => {
+export default function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
-
-  const navItems = [
-    { href: '/movements', label: 'Movements', icon: <SwapHoriz /> },
-    { href: '/analytics', label: 'Analytics', icon: <Assessment /> },
-    { href: '/salaries', label: 'Salaries', icon: <AttachMoney /> },
-    { href: '/settings', label: 'Settings', icon: <Settings /> },
-  ];
 
   const handleLogout = () => {
     localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    router.push('/auth');
+    window.location.href = '/auth';
   };
 
   return (
     <Drawer
       variant="permanent"
       sx={{
-        width: drawerWidth,
+        width: 240,
         flexShrink: 0,
-        [`& .MuiDrawer-paper`]: { 
-          width: drawerWidth, 
+        '& .MuiDrawer-paper': {
+          width: 240,
           boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
         },
       }}
     >
       <Toolbar>
-        <Typography variant="h6">Wisp</Typography>
+        <Typography variant="h6" noWrap component="div">
+          Wisp
+        </Typography>
       </Toolbar>
+      <Divider />
       <List sx={{ flexGrow: 1 }}>
-        {navItems.map((item) => (
-          <ListItem key={item.href} disablePadding>
-            <ListItemButton
-              component={Link}
-              href={item.href}
-              selected={pathname === item.href}
-            >
-              <ListItemIcon>
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText primary={item.label} />
-            </ListItemButton>
-          </ListItem>
-        ))}
+        <ListItemButton component={Link} href="/dashboard" selected={pathname === '/dashboard'}>
+          <ListItemIcon>
+            <DashboardIcon />
+          </ListItemIcon>
+          <ListItemText primary="Dashboard" />
+        </ListItemButton>
+        <ListItemButton component={Link} href="/movements" selected={pathname === '/movements'}>
+          <ListItemIcon>
+            <AccountBalanceIcon />
+          </ListItemIcon>
+          <ListItemText primary="Movements" />
+        </ListItemButton>
+        <ListItemButton component={Link} href="/analytics" selected={pathname === '/analytics'}>
+          <ListItemIcon>
+            <AnalyticsIcon />
+          </ListItemIcon>
+          <ListItemText primary="Analytics" />
+        </ListItemButton>
+        <ListItemButton component={Link} href="/settings" selected={pathname === '/settings'}>
+          <ListItemIcon>
+            <SettingsIcon />
+          </ListItemIcon>
+          <ListItemText primary="Settings" />
+        </ListItemButton>
       </List>
       <Divider />
-      <Box sx={{ p: 2 }}>
+      <List>
         <ListItemButton onClick={handleLogout}>
           <ListItemIcon>
-            <Logout />
+            <LogoutIcon />
           </ListItemIcon>
           <ListItemText primary="Logout" />
         </ListItemButton>
-      </Box>
+      </List>
     </Drawer>
   );
-};
-
-export default Sidebar;
+}
