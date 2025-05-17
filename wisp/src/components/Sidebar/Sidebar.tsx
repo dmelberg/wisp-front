@@ -13,8 +13,6 @@ import {
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
-  AccountBalance as AccountBalanceIcon,
-  Analytics as AnalyticsIcon,
   Settings as SettingsIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
@@ -51,18 +49,6 @@ export default function Sidebar() {
             <DashboardIcon />
           </ListItemIcon>
           <ListItemText primary="Dashboard" />
-        </ListItemButton>
-        <ListItemButton component={Link} href="/movements" selected={pathname === '/movements'}>
-          <ListItemIcon>
-            <AccountBalanceIcon />
-          </ListItemIcon>
-          <ListItemText primary="Movements" />
-        </ListItemButton>
-        <ListItemButton component={Link} href="/analytics" selected={pathname === '/analytics'}>
-          <ListItemIcon>
-            <AnalyticsIcon />
-          </ListItemIcon>
-          <ListItemText primary="Analytics" />
         </ListItemButton>
         <ListItemButton component={Link} href="/settings" selected={pathname === '/settings'}>
           <ListItemIcon>
