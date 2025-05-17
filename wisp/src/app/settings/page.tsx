@@ -6,57 +6,29 @@ import {
   Container,
   Typography,
   Box,
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   CircularProgress,
   Alert,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  IconButton,
+  Tabs,
+  Tab,
 } from '@mui/material';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 import axios from 'axios';
-
-interface Category {
-  id: number;
-  name: string;
-  household: {
-    id: number;
-    name: string;
-  };
-  created_at: string;
-  updated_at: string;
-}
-
-interface Member {
-  id: number;
-  name: string;
-  household: {
-    id: number;
-    name: string;
-  } | null;
-}
+import GeneralTab from './components/GeneralTab';
+import CategoriesTab from './components/CategoriesTab';
+import SalariesTab from './components/SalariesTab';
+import { Category, DistributionType, Member, User, Salary } from './types';
 
 export default function SettingsPage() {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
+  const [distributionTypes, setDistributionTypes] = useState<DistributionType[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [salaries, setSalaries] = useState<Salary[]>([]);
+  const [periods, setPeriods] = useState<{ id: number; period: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [newCategory, setNewCategory] = useState({
-    name: '',
-  });
   const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
+  const [currentTab, setCurrentTab] = useState(0);
 
   useEffect(() => {
     const accessToken = localStorage.getItem('accessToken');
@@ -81,6 +53,11 @@ export default function SettingsPage() {
       setHasHousehold(response.data.household !== null);
       if (response.data.household) {
         fetchCategories();
+        fetchMembers();
+        fetchUser();
+        fetchSalaries();
+        fetchDistributionTypes();
+        fetchPeriods();
       }
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 401) {
@@ -90,6 +67,54 @@ export default function SettingsPage() {
       }
       console.error('Error checking household:', err);
       setError('Failed to check household status');
+    }
+  };
+
+  const fetchUser = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      const response = await axios.get<User>('http://127.0.0.1:8000/api/users/me/', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      setUser(response.data);
+    } catch (err) {
+      console.error('Error fetching user:', err);
+    }
+  };
+
+  const fetchMembers = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      const response = await axios.get<Member[]>('http://127.0.0.1:8000/api/members/', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      setMembers(response.data);
+    } catch (err) {
+      console.error('Error fetching members:', err);
+    }
+  };
+
+  const fetchSalaries = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      const response = await axios.get<Salary[]>('http://127.0.0.1:8000/api/salaries/', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      setSalaries(response.data);
+    } catch (err) {
+      console.error('Error fetching salaries:', err);
     }
   };
 
@@ -121,7 +146,41 @@ export default function SettingsPage() {
     }
   };
 
-  const handleCreateCategory = async () => {
+  const fetchDistributionTypes = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      const response = await axios.get('http://127.0.0.1:8000/api/distribution-types/', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      setDistributionTypes(response.data);
+    } catch (err) {
+      console.error('Error fetching distribution types:', err);
+    }
+  };
+
+  const fetchPeriods = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      const response = await axios.get('http://127.0.0.1:8000/api/periods/', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      const sortedPeriods = response.data
+        .sort((a: { period: string }, b: { period: string }) => b.period.localeCompare(a.period));
+      setPeriods(sortedPeriods);
+    } catch (err) {
+      console.error('Error fetching periods:', err);
+    }
+  };
+
+  const handleCreateCategory = async (name: string, distributionType: string) => {
     try {
       const accessToken = localStorage.getItem('accessToken');
       if (!accessToken) {
@@ -131,7 +190,10 @@ export default function SettingsPage() {
 
       await axios.post(
         'http://127.0.0.1:8000/api/categories/',
-        newCategory,
+        {
+          name,
+          distribution_type: distributionType,
+        },
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -140,8 +202,6 @@ export default function SettingsPage() {
       );
 
       fetchCategories();
-      setShowCategoryDialog(false);
-      setNewCategory({ name: '' });
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 401) {
         localStorage.removeItem('accessToken');
@@ -153,9 +213,7 @@ export default function SettingsPage() {
     }
   };
 
-  const handleUpdateCategory = async () => {
-    if (!editingCategory) return;
-
+  const handleUpdateCategory = async (category: Category, name: string, distributionType: string) => {
     try {
       const accessToken = localStorage.getItem('accessToken');
       if (!accessToken) {
@@ -164,8 +222,11 @@ export default function SettingsPage() {
       }
 
       await axios.put(
-        `http://127.0.0.1:8000/api/categories/${editingCategory.id}/`,
-        { name: newCategory.name },
+        `http://127.0.0.1:8000/api/categories/${category.id}/`,
+        {
+          name,
+          distribution_type: distributionType,
+        },
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -174,9 +235,6 @@ export default function SettingsPage() {
       );
 
       fetchCategories();
-      setShowCategoryDialog(false);
-      setEditingCategory(null);
-      setNewCategory({ name: '' });
     } catch (err) {
       if (axios.isAxiosError(err) && err.response?.status === 401) {
         localStorage.removeItem('accessToken');
@@ -217,17 +275,102 @@ export default function SettingsPage() {
     }
   };
 
-  const handleEditClick = (category: Category) => {
-    setEditingCategory(category);
-    setNewCategory({ name: category.name });
-    setShowCategoryDialog(true);
+  const handleCreateSalary = async (amount: string, period: string, member: string) => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        router.push('/auth');
+        return;
+      }
+
+      // Find the period ID from the periods array
+      const periodObj = periods.find(p => p.period === period);
+      if (!periodObj) {
+        throw new Error('Period not found');
+      }
+
+      // Create the salary with the period ID
+      await axios.post(
+        'http://127.0.0.1:8000/api/salaries/',
+        {
+          amount: parseFloat(amount),
+          period_id: periodObj.id,
+          member_id: member,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      fetchSalaries();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        localStorage.removeItem('accessToken');
+        router.push('/auth');
+        return;
+      }
+      console.error('Error creating salary:', err);
+      setError('Failed to create salary. Please try again.');
+    }
   };
 
-  const handleDialogClose = () => {
-    setShowCategoryDialog(false);
-    setEditingCategory(null);
-    setNewCategory({ name: '' });
+  const handleUpdateSalary = async (id: number, amount: string, period: string, member: string) => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        router.push('/auth');
+        return;
+      }
+
+      // Find the period ID from the periods array
+      const periodObj = periods.find(p => p.period === period);
+      if (!periodObj) {
+        throw new Error('Period not found');
+      }
+
+      // Update the salary with the period ID
+      await axios.put(
+        `http://127.0.0.1:8000/api/salaries/${id}/`,
+        {
+          amount: parseFloat(amount),
+          period_id: periodObj.id,
+          member_id: member,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      fetchSalaries();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        localStorage.removeItem('accessToken');
+        router.push('/auth');
+        return;
+      }
+      console.error('Error updating salary:', err);
+      setError('Failed to update salary. Please try again.');
+    }
   };
+
+  const handlePeriodCreated = (newPeriod: string) => {
+    fetchPeriods();
+  };
+
+  const renderSalariesTab = () => (
+    <SalariesTab
+      salaries={salaries}
+      members={members}
+      periods={periods}
+      onCreate={handleCreateSalary}
+      onUpdate={handleUpdateSalary}
+      onPeriodCreated={handlePeriodCreated}
+    />
+  );
 
   if (hasHousehold === null) {
     return (
@@ -241,7 +384,7 @@ export default function SettingsPage() {
     return (
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Alert severity="info">
-          You need to belong to a household to manage categories. Please join or create a household first.
+          You need to belong to a household to access settings. Please join or create a household first.
         </Alert>
       </Container>
     );
@@ -253,83 +396,28 @@ export default function SettingsPage() {
         Settings
       </Typography>
 
-      <Box sx={{ mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h5">
-            Categories
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => setShowCategoryDialog(true)}
-          >
-            Add Category
-          </Button>
-        </Box>
-
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-            <CircularProgress />
-          </Box>
-        ) : error ? (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        ) : (
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Name</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {categories.map((category) => (
-                  <TableRow key={category.id}>
-                    <TableCell>{category.name}</TableCell>
-                    <TableCell align="right">
-                      <IconButton onClick={() => handleEditClick(category)}>
-                        <EditIcon />
-                      </IconButton>
-                      <IconButton onClick={() => handleDeleteCategory(category.id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }}>
+        <Tabs value={currentTab} onChange={(_, newValue) => setCurrentTab(newValue)}>
+          <Tab key="general" label="General" />
+          <Tab key="categories" label="Categories" />
+          <Tab key="salaries" label="Salaries" />
+        </Tabs>
       </Box>
 
-      <Dialog open={showCategoryDialog} onClose={handleDialogClose} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {editingCategory ? 'Edit Category' : 'Add New Category'}
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <TextField
-              label="Category Name"
-              value={newCategory.name}
-              onChange={(e) => setNewCategory({ name: e.target.value })}
-              fullWidth
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleDialogClose}>Cancel</Button>
-          <Button
-            onClick={editingCategory ? handleUpdateCategory : handleCreateCategory}
-            variant="contained"
-            disabled={!newCategory.name}
-          >
-            {editingCategory ? 'Update' : 'Create'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {currentTab === 0 && <GeneralTab user={user} members={members} />}
+      {currentTab === 1 && (
+        <CategoriesTab
+          categories={categories}
+          distributionTypes={distributionTypes}
+          loading={loading}
+          error={error}
+          onEdit={() => {}}
+          onDelete={handleDeleteCategory}
+          onCreate={handleCreateCategory}
+          onUpdate={handleUpdateCategory}
+        />
+      )}
+      {currentTab === 2 && renderSalariesTab()}
     </Container>
   );
 }

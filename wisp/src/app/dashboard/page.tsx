@@ -25,11 +25,12 @@ import {
   DialogActions,
   TextField,
   MenuItem,
+  IconButton,
 } from '@mui/material';
 import Link from 'next/link';
 import axios from 'axios';
 import HouseholdModal from '@/components/HouseholdModal';
-import { Add as AddIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
 
 interface Movement {
   id: number;
@@ -40,6 +41,11 @@ interface Movement {
   };
   created_at: string;
   description: string | null;
+  category: {
+    id: number;
+    name: string;
+  };
+  date: string;
 }
 
 interface Member {
@@ -64,13 +70,43 @@ export default function DashboardPage() {
   const [showHouseholdModal, setShowHouseholdModal] = useState(false);
   const [hasHousehold, setHasHousehold] = useState<boolean | null>(null);
   const [showMovementDialog, setShowMovementDialog] = useState(false);
+  const [showEditMovementDialog, setShowEditMovementDialog] = useState(false);
+  const [editingMovement, setEditingMovement] = useState<Movement | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [newMovement, setNewMovement] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
-    category: '',
+    category_id: '',
     description: '',
   });
+
+  const fetchMovements = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        router.push('/auth');
+        return;
+      }
+
+      const response = await axios.get('http://127.0.0.1:8000/api/movements/', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      setMovements(response.data);
+      setError(null);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        localStorage.removeItem('accessToken');
+        router.push('/auth');
+        return;
+      }
+      console.error('Error fetching movements:', err);
+      setError('Failed to fetch movements. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const accessToken = localStorage.getItem('accessToken');
@@ -93,23 +129,6 @@ export default function DashboardPage() {
       } catch (err) {
         console.error('Error checking household:', err);
         setError('Failed to check household status');
-      }
-    };
-
-    const fetchMovements = async () => {
-      try {
-        const response = await axios.get('http://127.0.0.1:8000/api/movements/', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-        setMovements(response.data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching movements:', err);
-        setError('Failed to fetch movements. Please try again later.');
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -148,7 +167,7 @@ export default function DashboardPage() {
         {
           amount: parseFloat(newMovement.amount),
           date: newMovement.date,
-          category_id: newMovement.category,
+          category_id: newMovement.category_id,
           description: newMovement.description,
         },
         {
@@ -169,13 +188,93 @@ export default function DashboardPage() {
       setNewMovement({
         amount: '',
         date: new Date().toISOString().split('T')[0],
-        category: '',
+        category_id: '',
         description: '',
       });
     } catch (err) {
       console.error('Error creating movement:', err);
       setError('Failed to create movement. Please try again.');
     }
+  };
+
+  const handleEditMovement = async () => {
+    if (!editingMovement) return;
+
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        router.push('/auth');
+        return;
+      }
+
+      await axios.put(
+        `http://127.0.0.1:8000/api/movements/${editingMovement.id}/`,
+        {
+          amount: parseFloat(newMovement.amount),
+          date: newMovement.date,
+          category_id: newMovement.category_id,
+          description: newMovement.description,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      fetchMovements();
+      setShowEditMovementDialog(false);
+      setEditingMovement(null);
+      setNewMovement({ amount: '', date: new Date().toISOString().split('T')[0], category_id: '', description: '' });
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        localStorage.removeItem('accessToken');
+        router.push('/auth');
+        return;
+      }
+      console.error('Error updating movement:', err);
+      setError('Failed to update movement. Please try again.');
+    }
+  };
+
+  const handleDeleteMovement = async (movementId: number) => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) {
+        router.push('/auth');
+        return;
+      }
+
+      await axios.delete(
+        `http://127.0.0.1:8000/api/movements/${movementId}/`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      fetchMovements();
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        localStorage.removeItem('accessToken');
+        router.push('/auth');
+        return;
+      }
+      console.error('Error deleting movement:', err);
+      setError('Failed to delete movement. Please try again.');
+    }
+  };
+
+  const handleEditClick = (movement: Movement) => {
+    setEditingMovement(movement);
+    setNewMovement({
+      amount: movement.amount.toString(),
+      date: movement.date,
+      category_id: movement.category.id.toString(),
+      description: movement.description || '',
+    });
+    setShowEditMovementDialog(true);
   };
 
   if (hasHousehold === null) {
@@ -192,71 +291,6 @@ export default function DashboardPage() {
         Dashboard
       </Typography>
       
-      <Grid container spacing={3}>
-        <Grid item xs={12} md={6} lg={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Movements
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                View and manage all financial movements
-              </Typography>
-              <Button
-                component={Link}
-                href="/movements"
-                variant="contained"
-                color="primary"
-              >
-                Go to Movements
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={6} lg={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Salaries
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                Manage salary distributions and calculations
-              </Typography>
-              <Button
-                component={Link}
-                href="/salaries"
-                variant="contained"
-                color="primary"
-              >
-                Go to Salaries
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        <Grid item xs={12} md={6} lg={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Analytics
-              </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                View financial analytics and reports
-              </Typography>
-              <Button
-                component={Link}
-                href="/analytics"
-                variant="contained"
-                color="primary"
-              >
-                Go to Analytics
-              </Button>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-
       {hasHousehold && (
         <Box sx={{ mt: 4 }}>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -286,19 +320,28 @@ export default function DashboardPage() {
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell>Member</TableCell>
-                    <TableCell align="right">Amount</TableCell>
-                    <TableCell>Description</TableCell>
                     <TableCell>Date</TableCell>
+                    <TableCell>Category</TableCell>
+                    <TableCell>Amount</TableCell>
+                    <TableCell>Description</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {movements.map((movement) => (
                     <TableRow key={movement.id}>
-                      <TableCell>{movement.member.name}</TableCell>
+                      <TableCell>{new Date(movement.date).toLocaleDateString()}</TableCell>
+                      <TableCell>{movement.category.name}</TableCell>
                       <TableCell align="right">${Math.round(movement.amount)}</TableCell>
                       <TableCell>{movement.description || '-'}</TableCell>
-                      <TableCell>{new Date(movement.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <IconButton onClick={() => handleEditClick(movement)} size="small">
+                          <EditIcon />
+                        </IconButton>
+                        <IconButton onClick={() => handleDeleteMovement(movement.id)} size="small">
+                          <DeleteIcon />
+                        </IconButton>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -336,8 +379,8 @@ export default function DashboardPage() {
             <TextField
               select
               label="Category"
-              value={newMovement.category}
-              onChange={(e) => setNewMovement({ ...newMovement, category: e.target.value })}
+              value={newMovement.category_id}
+              onChange={(e) => setNewMovement({ ...newMovement, category_id: e.target.value })}
               fullWidth
             >
               {categories.map((category) => (
@@ -361,9 +404,61 @@ export default function DashboardPage() {
           <Button 
             onClick={handleCreateMovement} 
             variant="contained" 
-            disabled={!newMovement.amount || !newMovement.category}
+            disabled={!newMovement.amount || !newMovement.category_id}
           >
             Create
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={showEditMovementDialog} onClose={() => setShowEditMovementDialog(false)}>
+        <DialogTitle>Edit Movement</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Amount"
+            type="number"
+            value={newMovement.amount}
+            onChange={(e) => setNewMovement({ ...newMovement, amount: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            label="Date"
+            type="date"
+            value={newMovement.date}
+            onChange={(e) => setNewMovement({ ...newMovement, date: e.target.value })}
+            margin="normal"
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            fullWidth
+            select
+            label="Category"
+            value={newMovement.category_id}
+            onChange={(e) => setNewMovement({ ...newMovement, category_id: e.target.value })}
+            margin="normal"
+          >
+            {categories.map((category) => (
+              <MenuItem key={category.id} value={category.id}>
+                {category.name}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            fullWidth
+            label="Description"
+            value={newMovement.description}
+            onChange={(e) => setNewMovement({ ...newMovement, description: e.target.value })}
+            margin="normal"
+            multiline
+            rows={2}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowEditMovementDialog(false)}>Cancel</Button>
+          <Button onClick={handleEditMovement} variant="contained" color="primary">
+            Update
           </Button>
         </DialogActions>
       </Dialog>
