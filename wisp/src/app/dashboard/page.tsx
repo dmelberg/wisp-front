@@ -26,11 +26,12 @@ import {
   TextField,
   MenuItem,
   IconButton,
+  Collapse,
 } from '@mui/material';
 import Link from 'next/link';
 import axios from 'axios';
 import HouseholdModal from '@/components/HouseholdModal';
-import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { Add as AddIcon, Edit as EditIcon, Delete as DeleteIcon, ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 
 interface Movement {
   id: number;
@@ -55,11 +56,24 @@ interface Member {
     id: number;
     name: string;
   } | null;
+  balance: number;
+  total_owed: number;
+  total_paid: number;
 }
 
 interface Category {
   id: number;
   name: string;
+}
+
+interface DetailedBalance {
+  member: {
+    id: number;
+    name: string;
+  };
+  you_owe: number;
+  owes_you: number;
+  net_balance: number;
 }
 
 export default function DashboardPage() {
@@ -73,12 +87,16 @@ export default function DashboardPage() {
   const [showEditMovementDialog, setShowEditMovementDialog] = useState(false);
   const [editingMovement, setEditingMovement] = useState<Movement | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [currentMember, setCurrentMember] = useState<Member | null>(null);
+  const [householdMembers, setHouseholdMembers] = useState<Member[]>([]);
   const [newMovement, setNewMovement] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     category_id: '',
     description: '',
   });
+  const [detailedBalances, setDetailedBalances] = useState<DetailedBalance[]>([]);
+  const [expanded, setExpanded] = useState(false);
 
   const fetchMovements = async () => {
     try {
@@ -108,6 +126,38 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchHouseholdMembers = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      const response = await axios.get<Member[]>('http://127.0.0.1:8000/api/members/', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      setHouseholdMembers(response.data);
+    } catch (err) {
+      console.error('Error fetching household members:', err);
+    }
+  };
+
+  const fetchDetailedBalances = async () => {
+    try {
+      const accessToken = localStorage.getItem('accessToken');
+      if (!accessToken) return;
+
+      const response = await axios.get<DetailedBalance[]>('http://127.0.0.1:8000/api/members/detailed_balances/', {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      setDetailedBalances(response.data);
+    } catch (err) {
+      console.error('Error fetching detailed balances:', err);
+    }
+  };
+
   useEffect(() => {
     const accessToken = localStorage.getItem('accessToken');
     if (!accessToken) {
@@ -122,6 +172,7 @@ export default function DashboardPage() {
             Authorization: `Bearer ${accessToken}`,
           },
         });
+        setCurrentMember(response.data);
         setHasHousehold(response.data.household !== null);
         if (response.data.household === null) {
           setShowHouseholdModal(true);
@@ -149,6 +200,8 @@ export default function DashboardPage() {
     if (hasHousehold) {
       fetchMovements();
       fetchCategories();
+      fetchHouseholdMembers();
+      fetchDetailedBalances();
     }
   }, [router, hasHousehold]);
 
@@ -191,9 +244,15 @@ export default function DashboardPage() {
         category_id: '',
         description: '',
       });
+      setError(null); // Clear any previous errors
     } catch (err) {
       console.error('Error creating movement:', err);
-      setError('Failed to create movement. Please try again.');
+      if (axios.isAxiosError(err) && err.response?.data) {
+        // Display the specific error message from the backend
+        setError(err.response.data.detail || 'Failed to create movement. Please try again.');
+      } else {
+        setError('Failed to create movement. Please try again.');
+      }
     }
   };
 
@@ -288,8 +347,81 @@ export default function DashboardPage() {
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
-        Dashboard
+        Home
       </Typography>
+      
+      {hasHousehold && currentMember && (
+        <>
+          <Box sx={{ mb: 4 }}>
+            <Card>
+              <CardContent>
+                <Box 
+                  sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => setExpanded(!expanded)}
+                >
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      Your Balance
+                    </Typography>
+                    <Typography variant="h4" color={currentMember.balance >= 0 ? 'success.main' : 'error.main'}>
+                      ${Math.round(Math.abs(currentMember.balance))}
+                      <Typography component="span" variant="body1" color="text.secondary">
+                        {currentMember.balance >= 0 ? ' owed to you' : ' you owe'}
+                      </Typography>
+                    </Typography>
+                  </Box>
+                  <ExpandMoreIcon 
+                    sx={{ 
+                      transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.3s'
+                    }} 
+                  />
+                </Box>
+                <Collapse in={expanded}>
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Detailed Balances
+                    </Typography>
+                    {detailedBalances.map((balance) => (
+                      <Box 
+                        key={balance.member.id}
+                        sx={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          py: 1,
+                          borderBottom: '1px solid',
+                          borderColor: 'divider'
+                        }}
+                      >
+                        <Typography>{balance.member.name}</Typography>
+                        <Typography 
+                          sx={{ 
+                            color: balance.net_balance > 0 ? 'success.main' : 
+                                  balance.net_balance < 0 ? 'error.main' : 'text.primary',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          ${Math.round(Math.abs(balance.net_balance))}
+                          <Typography component="span" variant="body2" color="text.secondary">
+                            {balance.net_balance > 0 ? ' owes you' : 
+                             balance.net_balance < 0 ? ' you owe' : ''}
+                          </Typography>
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                </Collapse>
+              </CardContent>
+            </Card>
+          </Box>
+        </>
+      )}
       
       {hasHousehold && (
         <Box sx={{ mt: 4 }}>
