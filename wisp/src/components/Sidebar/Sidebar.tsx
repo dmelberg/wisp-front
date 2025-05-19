@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
+  Home as HomeIcon,
   Settings as SettingsIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
@@ -46,9 +47,9 @@ export default function Sidebar() {
       <List sx={{ flexGrow: 1 }}>
         <ListItemButton component={Link} href="/dashboard" selected={pathname === '/dashboard'}>
           <ListItemIcon>
-            <DashboardIcon />
+            <HomeIcon />
           </ListItemIcon>
-          <ListItemText primary="Dashboard" />
+          <ListItemText primary="Home" />
         </ListItemButton>
         <ListItemButton component={Link} href="/settings" selected={pathname === '/settings'}>
           <ListItemIcon>
